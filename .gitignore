@@ -18,3 +18,10 @@
 
 # Hardhat coverage reports
 /coverage
+
+# Foundry (forge build / forge script)
+/out
+# Descomenta la siguiente línea si NO querés versionar los JSON de broadcast:
+# /broadcast
+
+.env

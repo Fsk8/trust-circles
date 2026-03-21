@@ -13,15 +13,17 @@ import "./ITrustCircleTypes.sol";
  * @notice Pool de ahorro colaborativo con gobernanza dinámica y soporte multicurrency.
  *         Cada instancia es desplegada por TrustCircleFactory.
  *
+ * ARQUITECTURA:
+ *  Este contrato NO gestiona reputación directamente. Notifica a TrustCircleFactory
+ *  vía ITrustCircleFactory, y la Factory delega los puntajes a ReputationManager.
+ *
  * SEGURIDAD:
  *  - ReentrancyGuard en todas las funciones que mueven fondos.
- *  - Pull-over-push pattern: los fondos aprobados se desembolsan solo vía executeRequest.
- *  - Uso de SafeERC20 para tokens no estándar que no revierten en fallo.
+ *  - Pull-over-push: fondos aprobados se desembolsan solo vía executeRequest.
+ *  - SafeERC20 para tokens no estándar que no revierten en fallo.
  *  - Validación de quórum y plazo antes de cualquier ejecución.
- *  - Emergency Kill Switch: la Factory puede pausar el círculo y proponer un nuevo admin
- *    si el admin original pierde su clave privada (recuperación gobernada).
- *  - minContribution: umbral mínimo de depósito para prevenir "reputation farming" con
- *    micro-aportes repetidos.
+ *  - Emergency Kill Switch: la Factory puede pausar y proponer nuevo admin.
+ *  - minContribution: umbral mínimo de depósito (anti reputation-farming).
  *
  * GAS OPTIMIZATION NOTES (v1 — Hackathon):
  *  - Se usan uint256 para simplicidad y compatibilidad con OZ. En v2 se empaquetarán
