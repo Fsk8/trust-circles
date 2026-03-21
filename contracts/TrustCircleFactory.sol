@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./ITrustCircleTypes.sol";
 import "./TrustCircle.sol";
 
 /**
@@ -35,7 +36,7 @@ import "./TrustCircle.sol";
  *  - Reputación mínima = 0 (nunca underflow).
  *  - Ownable para funciones administrativas de emergencia.
  */
-contract TrustCircleFactory is Ownable, ReentrancyGuard {
+contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
 
     // ─────────────────────────────────────────────
     //  CONSTANTS
@@ -78,7 +79,7 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard {
         string  name;
         bool    isNative;
         address tokenAddress;
-        TrustCircle.TrustLevel trustLevel;
+        TrustLevel trustLevel;
         uint256 createdAt;
     }
     mapping(address => CircleInfo) public circleInfo;
@@ -93,7 +94,7 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard {
         string  name,
         bool    isNative,
         address tokenAddress,
-        TrustCircle.TrustLevel trustLevel
+        TrustLevel trustLevel
     );
 
     event ReputationIncreased(address indexed user, uint256 delta, uint256 newScore);
@@ -145,7 +146,7 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard {
         string calldata name,
         bool isNative,
         address tokenAddress,
-        TrustCircle.TrustLevel trustLevel,
+        TrustLevel trustLevel,
         address[] calldata initialMembers,
         uint256 minContribution
     ) external nonReentrant returns (address circleAddress) {
