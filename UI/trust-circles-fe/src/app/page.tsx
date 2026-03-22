@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react' // <--- Añadido useEffect
 import { CircleDot, Loader2, Sparkles, Wallet, Zap } from 'lucide-react'
 import { parseEther, zeroAddress } from 'viem'
 import { avalancheFuji } from 'wagmi/chains'
@@ -51,6 +51,13 @@ function trustLevelLabel(level: 0 | 1 | 2) {
 }
 
 export default function Page() {
+  // --- 1. BLINDAJE DE HIDRATACIÓN ---
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // --- 2. HOOKS DE WAGMI ---
   const connection = useAccount()
   const chainId = useChainId()
   const {
@@ -63,6 +70,7 @@ export default function Page() {
   const { disconnect } = useDisconnect()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
+  // --- 3. ESTADOS DEL FORMULARIO ---
   const [name, setName] = useState('')
   const [minContribution, setMinContribution] = useState('0.01')
   const [durationDays, setDurationDays] = useState('3')
@@ -96,6 +104,16 @@ export default function Page() {
   const address = connection.addresses?.[0]
   const wrongNetwork = isConnected && chainId !== avalancheFuji.id
 
+  // --- 4. RENDERIZADO INICIAL (SSR SAFE) ---
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="size-8 animate-spin text-cyan-500" />
+      </div>
+    )
+  }
+
+  // --- 5. LÓGICA DE NEGOCIO ---
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFormError(null)
