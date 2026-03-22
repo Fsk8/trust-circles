@@ -1,15 +1,14 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { useMemo, useState, useEffect } from 'react'
-import { CircleDot, Loader2, Sparkles, Wallet, Zap } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CircleDot, Loader2, Sparkles, Zap } from 'lucide-react'
 import { parseEther, zeroAddress } from 'viem'
 import { avalancheFuji } from 'wagmi/chains'
 import {
   useChainId,
-  useConnect,
   useAccount,
-  useConnectors,
   useDisconnect,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -17,35 +16,21 @@ import {
 } from 'wagmi'
 
 import { Button, buttonVariants } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FACTORY_ADDRESS, factoryAbi } from '@/constants/contracts'
-import { shortAddress } from '@/lib/eth'
 import { cn } from '@/lib/utils'
 
-function daysToTrustLevel(days: number): 0 | 1 | 2 {
-  const d = Math.max(1, Math.min(365, Math.round(days)))
-  if (d <= 1) return 0
-  if (d === 2) return 1
-  return 2
-}
+// 🚀 LA CLAVE: Cargar la sección de wallet SOLO en el cliente
+const ConnectSection = dynamic(() => import('@/components/ConnectSection'), { 
+  ssr: false,
+  loading: () => <div className="h-10 w-32 animate-pulse rounded-lg bg-white/5" />
+})
 
 export default function Page() {
-  const [mounted, setMounted] = useState(false)
-  
-  // Siempre llamar a los hooks en el top level
-  const connection = useAccount()
+  const { isConnected, address } = useAccount()
   const chainId = useChainId()
-  const { connect, status: connectStatus, reset: resetConnect } = useConnect()
-  const connectors = useConnectors()
   const { disconnect } = useDisconnect()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
@@ -54,120 +39,97 @@ export default function Page() {
   const [durationDays, setDurationDays] = useState('3')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const { writeContract, data: hash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
-  
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-    chainId: avalancheFuji.id,
-  })
+  const { writeContract, data: hash, isPending: isWritePending, error: writeError } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash })
 
-  // Hook de montaje
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const trustLevel = useMemo(() => daysToTrustLevel(Number(durationDays) || 1), [durationDays])
-  const defaultConnector = useMemo(() => connectors[0], [connectors])
-  const isConnected = connection.status === 'connected'
-  const address = connection.addresses?.[0]
   const wrongNetwork = isConnected && chainId !== avalancheFuji.id
-
-  const handleConnectWallet = (connector = defaultConnector) => {
-    if (!connector) return
-    resetConnect()
-    connect({ connector, chainId: avalancheFuji.id })
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setFormError(null)
-    if (!isConnected || !address) return setFormError('Connect wallet first.')
+    if (!isConnected) return setFormError('Connect first!')
     try {
-      const minWei = parseEther(minContribution || '0')
       writeContract({
         address: FACTORY_ADDRESS,
         abi: factoryAbi,
         functionName: 'createCircle',
-        args: [name.trim(), true, zeroAddress, trustLevel, [], minWei],
-        chainId: avalancheFuji.id,
+        args: [name, true, zeroAddress, 1, [], parseEther(minContribution)],
       })
-    } catch (err) {
-      setFormError('Invalid amount.')
-    }
+    } catch (err) { setFormError('Check amounts') }
   }
 
-  // --- RENDERIZADO CRÍTICO ---
-  // Si no está montado, el servidor devuelve un div vacío. 
-  // Esto garantiza que NO haya mismatch de HTML.
-  if (!mounted) return <div className="min-h-screen bg-black" />
-
   return (
-    <div className="relative min-h-screen bg-black text-white p-4 font-sans" suppressHydrationWarning>
-      <div className="mx-auto max-w-lg space-y-8 pt-12">
-        
-        {/* Header */}
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CircleDot className="text-cyan-400 size-8" />
-            <div>
-              <h1 className="text-xl font-bold">Trust Circles</h1>
-              <p className="text-xs text-cyan-500/80 font-mono">Fuji Testnet</p>
-            </div>
-          </div>
+    <div className="relative min-h-screen bg-[#030303] text-slate-200 selection:bg-cyan-500/30">
+      {/* Glow Effects - Estilo Aleph */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] rounded-full bg-violet-600/10 blur-[120px]" />
+      </div>
 
-          {isConnected ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono bg-white/10 px-2 py-1 rounded">{shortAddress(address!)}</span>
-              <Button variant="ghost" size="sm" onClick={() => disconnect()}>Logout</Button>
+      <div className="relative mx-auto max-w-lg px-6 py-12">
+        <header className="flex items-center justify-between mb-12">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-600/20 border border-cyan-500/30">
+              <CircleDot className="size-6 text-cyan-400" />
             </div>
-          ) : (
-            <Button onClick={() => handleConnectWallet()} disabled={connectStatus === 'pending'}>
-              {connectStatus === 'pending' ? <Loader2 className="animate-spin" /> : 'Connect'}
-            </Button>
-          )}
+            <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+              Trust Circles
+            </h1>
+          </div>
+          <ConnectSection disconnect={disconnect} />
         </header>
 
-        {/* Form Card */}
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Sparkles className="size-4 text-violet-400" /> Nuevo Círculo
+        <Card className="border-white/5 bg-white/[0.02] backdrop-blur-xl shadow-2xl">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <Sparkles className="size-5 text-cyan-400" /> Create Circle
             </CardTitle>
+            <CardDescription className="text-slate-400 text-sm">
+              Deploy a new trust-based pool on Avalanche Fuji.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {wrongNetwork && (
-              <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => switchChain({ chainId: avalancheFuji.id })}>
-                Switch to Fuji
-              </Button>
-            )}
-            <div className="space-y-2">
-              <Label className="text-neutral-400">Nombre</Label>
-              <Input className="bg-neutral-800 border-neutral-700 text-white" value={name} onChange={e => setName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-neutral-400">Min Contribution (AVAX)</Label>
-              <Input type="number" className="bg-neutral-800 border-neutral-700 text-white" value={minContribution} onChange={e => setMinContribution(e.target.value)} />
-            </div>
-            
-            {hash && (
-              <div className="p-3 bg-cyan-950/30 border border-cyan-800 rounded text-[10px] break-all">
-                <p className="text-cyan-400 font-bold">Tx Hash:</p>
-                <a href={`https://testnet.snowtrace.io/tx/${hash}`} target="_blank" className="underline">{hash}</a>
-                {isConfirming && <p className="mt-2 animate-pulse">Esperando confirmación...</p>}
-                {isConfirmed && <p className="mt-2 text-green-400 font-bold">¡Desplegado con éxito!</p>}
+          
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-6 pt-4">
+              {wrongNetwork && (
+                <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs flex flex-col gap-2">
+                  <span className="flex items-center gap-2 font-semibold"><Zap className="size-4" /> Wrong Network</span>
+                  <Button size="sm" className="bg-orange-500 text-white hover:bg-orange-600" onClick={() => switchChain({ chainId: avalancheFuji.id })}>
+                    Switch to Fuji
+                  </Button>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-widest text-slate-500">Circle Name</Label>
+                <Input className="bg-white/5 border-white/10 focus:border-cyan-500/50 transition-all" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cochabamba Devs" />
               </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full bg-cyan-600 hover:bg-cyan-500" onClick={handleSubmit} disabled={isWritePending || isConfirming}>
-              {(isWritePending || isConfirming) ? <Loader2 className="animate-spin" /> : 'Desplegar en Fuji'}
-            </Button>
-          </CardFooter>
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-widest text-slate-500">Min. Contribution (AVAX)</Label>
+                <Input type="number" step="0.01" className="bg-white/5 border-white/10 focus:border-cyan-500/50" value={minContribution} onChange={e => setMinContribution(e.target.value)} />
+              </div>
+
+              {hash && (
+                <div className="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 animate-in slide-in-from-bottom-2">
+                  <p className="text-[10px] text-cyan-400 font-mono mb-1 uppercase tracking-wider">Transaction Sent</p>
+                  <a href={`https://testnet.snowtrace.io/tx/${hash}`} target="_blank" className="text-xs underline break-all opacity-70 hover:opacity-100 transition-opacity">{hash}</a>
+                  {isConfirmed && <p className="text-emerald-400 text-xs mt-2 font-bold">✓ Circle Deployed Successfully</p>}
+                </div>
+              )}
+            </CardContent>
+
+            <CardFooter>
+              <Button type="submit" size="lg" className="w-full bg-gradient-to-r from-cyan-600 to-violet-600 hover:scale-[1.02] active:scale-[0.98] transition-all font-bold shadow-lg shadow-cyan-500/20" disabled={isWritePending || isConfirming}>
+                {(isWritePending || isConfirming) ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2 size-4 fill-current" />}
+                {isConfirming ? 'Confirming...' : 'Deploy on Fuji'}
+              </Button>
+            </CardFooter>
+          </form>
         </Card>
 
-        <div className="text-center">
-          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-cyan-400 transition-colors">
-            Ir al Dashboard →
+        <div className="mt-8 text-center">
+          <Link href="/dashboard" className="text-xs text-slate-500 hover:text-cyan-400 transition-colors uppercase tracking-[0.2em]">
+            Dashboard View →
           </Link>
         </div>
       </div>
