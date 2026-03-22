@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 // 🚀 CONFIGURACIÓN DE METADATA PARA LA HACKATHON
 export const metadata: Metadata = {
-  title: "Trust Circles | Reputación On-chain en Avalanche",
+  title: "Trust Circles | p2p insurance protocol",
   description: "Círculos de confianza descentralizados sobre Avalanche Fuji. Gestiona tu reputación Web3.",
   openGraph: {
     title: "Trust Circles",
