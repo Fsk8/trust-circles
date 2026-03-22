@@ -6,10 +6,7 @@ import "../src/ReputationManager.sol";
 import "../src/TrustCircleFactory.sol";
 
 contract DeployAll is Script {
-    function run()
-        external
-        returns (address reputationManager, address factory, address circleAddress)
-    {
+    function run() external returns (address reputationManager, address factory, address circleAddress) {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
 
         string memory name = vm.envString("CIRCLE_NAME");
@@ -29,12 +26,7 @@ contract DeployAll is Script {
         rep.setFactory(address(fac));
 
         circleAddress = fac.createCircle(
-            name,
-            isNative,
-            tokenAddress,
-            ITrustCircleTypes.TrustLevel(trustLevelRaw),
-            initialMembers,
-            minContribution
+            name, isNative, tokenAddress, ITrustCircleTypes.TrustLevel(trustLevelRaw), initialMembers, minContribution
         );
 
         vm.stopBroadcast();

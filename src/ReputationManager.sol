@@ -21,14 +21,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  *  4. Los círculos llaman a la Factory → Factory llama a este contrato.
  */
 contract ReputationManager is Ownable {
-
     // ─────────────────────────────────────────────
     //  CONSTANTS
     // ─────────────────────────────────────────────
 
-    uint256 public constant INITIAL_REPUTATION     = 100;
+    uint256 public constant INITIAL_REPUTATION = 100;
     uint256 public constant POINTS_PER_CONTRIBUTION = 10;
-    uint256 public constant PENALTY_REJECTION       = 25;
+    uint256 public constant PENALTY_REJECTION = 25;
 
     // ─────────────────────────────────────────────
     //  STATE
@@ -60,10 +59,7 @@ contract ReputationManager is Ownable {
      *      El owner se reserva para correcciones de emergencia y tests.
      */
     modifier onlyAuthorized() {
-        require(
-            msg.sender == factory || msg.sender == owner(),
-            "RepMgr: not authorized"
-        );
+        require(msg.sender == factory || msg.sender == owner(), "RepMgr: not authorized");
         _;
     }
 
@@ -153,7 +149,7 @@ contract ReputationManager is Ownable {
     function _init(address user) internal {
         if (!_initialized[user]) {
             _initialized[user] = true;
-            score[user]        = INITIAL_REPUTATION;
+            score[user] = INITIAL_REPUTATION;
         }
     }
 }

@@ -84,7 +84,7 @@ contract TrustCircleTest is Test {
 
         circle.executeRequest(0);
 
-        (, , , , uint256 votesFor, uint256 votesAgainst, TrustCircle.RequestStatus status) = circle.getRequest(0);
+        (,,,, uint256 votesFor, uint256 votesAgainst, TrustCircle.RequestStatus status) = circle.getRequest(0);
         assertEq(votesFor, 1);
         assertEq(votesAgainst, 0);
         assertEq(uint256(status), uint256(TrustCircle.RequestStatus.Executed));
@@ -108,7 +108,7 @@ contract TrustCircleTest is Test {
 
         circle.executeRequest(0);
 
-        (, , , , , , TrustCircle.RequestStatus status) = circle.getRequest(0);
+        (,,,,,, TrustCircle.RequestStatus status) = circle.getRequest(0);
         assertEq(uint256(status), uint256(TrustCircle.RequestStatus.Rejected));
         assertEq(rep.getScore(alice), repAfterContribution - rep.PENALTY_REJECTION());
     }
@@ -123,7 +123,7 @@ contract TrustCircleTest is Test {
         vm.warp(block.timestamp + 25 hours);
         circle.executeRequest(0);
 
-        (, , , , , , TrustCircle.RequestStatus status) = circle.getRequest(0);
+        (,,,,,, TrustCircle.RequestStatus status) = circle.getRequest(0);
         assertEq(uint256(status), uint256(TrustCircle.RequestStatus.Expired));
     }
 
@@ -152,7 +152,7 @@ contract TrustCircleTest is Test {
         circle.vote(0, true);
 
         circle.executeRequest(0);
-        (, , , , , , TrustCircle.RequestStatus status) = circle.getRequest(0);
+        (,,,,,, TrustCircle.RequestStatus status) = circle.getRequest(0);
         assertEq(uint256(status), uint256(TrustCircle.RequestStatus.Executed));
     }
 

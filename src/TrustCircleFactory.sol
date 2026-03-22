@@ -33,7 +33,6 @@ import "./ReputationManager.sol";
  *  3. ReputationManager.setFactory(factoryAddress)
  */
 contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
-
     // ─────────────────────────────────────────────
     //  STATE
     // ─────────────────────────────────────────────
@@ -49,14 +48,15 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
 
     /// @notice Metadatos de cada círculo desplegado.
     struct CircleInfo {
-        address    circleAddress;
-        address    admin;
-        string     name;
-        bool       isNative;
-        address    tokenAddress;
+        address circleAddress;
+        address admin;
+        string name;
+        bool isNative;
+        address tokenAddress;
         TrustLevel trustLevel;
-        uint256    createdAt;
+        uint256 createdAt;
     }
+
     mapping(address => CircleInfo) public circleInfo;
 
     // ─────────────────────────────────────────────
@@ -66,8 +66,8 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
     event CircleCreated(
         address indexed circleAddress,
         address indexed admin,
-        string  name,
-        bool    isNative,
+        string name,
+        bool isNative,
         address tokenAddress,
         TrustLevel trustLevel
     );
@@ -112,34 +112,29 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
      * @return circleAddress  Dirección del nuevo TrustCircle.
      */
     function createCircle(
-        string     calldata name,
-        bool                isNative,
-        address             tokenAddress,
-        TrustLevel          trustLevel,
-        address[]  calldata initialMembers,
-        uint256             minContribution
+        string calldata name,
+        bool isNative,
+        address tokenAddress,
+        TrustLevel trustLevel,
+        address[] calldata initialMembers,
+        uint256 minContribution
     ) external nonReentrant returns (address circleAddress) {
         require(bytes(name).length > 0, "Factory: empty name");
-        require(minContribution > 0,    "Factory: min=0");
+        require(minContribution > 0, "Factory: min=0");
 
         if (isNative) {
             require(tokenAddress == address(0), "Factory: token!=0 for AVAX");
         } else {
             require(tokenAddress != address(0), "Factory: token=0 for ERC20");
             uint256 sz;
-            assembly { sz := extcodesize(tokenAddress) }
+            assembly {
+                sz := extcodesize(tokenAddress)
+            }
             require(sz > 0, "Factory: token not contract");
         }
 
-        TrustCircle circle = new TrustCircle(
-            msg.sender,
-            address(this),
-            isNative,
-            tokenAddress,
-            trustLevel,
-            name,
-            minContribution
-        );
+        TrustCircle circle =
+            new TrustCircle(msg.sender, address(this), isNative, tokenAddress, trustLevel, name, minContribution);
 
         circleAddress = address(circle);
 
@@ -147,12 +142,12 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
         circles.push(circleAddress);
         circleInfo[circleAddress] = CircleInfo({
             circleAddress: circleAddress,
-            admin:         msg.sender,
-            name:          name,
-            isNative:      isNative,
-            tokenAddress:  tokenAddress,
-            trustLevel:    trustLevel,
-            createdAt:     block.timestamp
+            admin: msg.sender,
+            name: name,
+            isNative: isNative,
+            tokenAddress: tokenAddress,
+            trustLevel: trustLevel,
+            createdAt: block.timestamp
         });
 
         for (uint256 i; i < initialMembers.length; ++i) {
@@ -171,7 +166,7 @@ contract TrustCircleFactory is Ownable, ReentrancyGuard, ITrustCircleTypes {
     /**
      * @notice Un círculo notifica que un miembro contribuyó → suma reputación.
      */
-    function onContribution(address contributor, uint256 /*amount*/) external onlyCircle {
+    function onContribution(address contributor, uint256 /*amount*/ ) external onlyCircle {
         reputation.increase(contributor);
     }
 

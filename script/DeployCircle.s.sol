@@ -21,12 +21,7 @@ contract DeployCircle is Script {
 
         vm.startBroadcast(deployerPk);
         circleAddress = TrustCircleFactory(factoryAddress).createCircle(
-            name,
-            isNative,
-            tokenAddress,
-            ITrustCircleTypes.TrustLevel(trustLevelRaw),
-            initialMembers,
-            minContribution
+            name, isNative, tokenAddress, ITrustCircleTypes.TrustLevel(trustLevelRaw), initialMembers, minContribution
         );
         vm.stopBroadcast();
     }

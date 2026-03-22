@@ -52,8 +52,8 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
     struct EmergencyRequest {
         address requester;
         uint256 amount;
-        string  reason;
-        uint256 deadline;       // timestamp en que expira la votación
+        string reason;
+        uint256 deadline; // timestamp en que expira la votación
         uint256 votesFor;
         uint256 votesAgainst;
         RequestStatus status;
@@ -112,11 +112,11 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
      *         Los miembros votan para aceptar o rechazar al nuevo admin propuesto.
      */
     struct AdminRecoveryProposal {
-        address proposed;       // nuevo admin candidato
-        uint256 deadline;       // timestamp límite para votar
+        address proposed; // nuevo admin candidato
+        uint256 deadline; // timestamp límite para votar
         uint256 votesFor;
         uint256 votesAgainst;
-        bool    executed;
+        bool executed;
         mapping(address => bool) hasVoted;
     }
 
@@ -142,8 +142,8 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
     //  GOVERNANCE CONSTANTS (calculados en constructor)
     // ─────────────────────────────────────────────
 
-    uint256 public quorumBps;        // basis points: 5000 = 50%, 6700 = 67%, 8000 = 80%
-    uint256 public votingDuration;   // segundos
+    uint256 public quorumBps; // basis points: 5000 = 50%, 6700 = 67%, 8000 = 80%
+    uint256 public votingDuration; // segundos
 
     // ─────────────────────────────────────────────
     //  EVENTS
@@ -172,12 +172,12 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
      */
     event SubnetReady(
         address indexed circleAddress,
-        bool    isNative,
+        bool isNative,
         address tokenAddress,
         TrustLevel trustLevel,
         uint256 quorumBps,
         uint256 votingDuration,
-        string  circleName
+        string circleName
     );
 
     // ─────────────────────────────────────────────
@@ -216,7 +216,7 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
     constructor(
         address _admin,
         address _factory,
-        bool    _isNative,
+        bool _isNative,
         address _tokenAddress,
         TrustLevel _trustLevel,
         string memory _circleName,
@@ -228,22 +228,22 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         }
         require(_minContribution > 0, "TrustCircle: minContribution must be > 0");
 
-        factory         = _factory;
-        isNative        = _isNative;
-        tokenAddress    = _tokenAddress;
-        trustLevel      = _trustLevel;
-        circleName      = _circleName;
+        factory = _factory;
+        isNative = _isNative;
+        tokenAddress = _tokenAddress;
+        trustLevel = _trustLevel;
+        circleName = _circleName;
         minContribution = _minContribution;
 
         // Configurar parámetros de gobernanza según nivel
         if (_trustLevel == TrustLevel.High) {
-            quorumBps      = 5000; // 50%
+            quorumBps = 5000; // 50%
             votingDuration = 24 hours;
         } else if (_trustLevel == TrustLevel.Medium) {
-            quorumBps      = 6700; // 67%
+            quorumBps = 6700; // 67%
             votingDuration = 48 hours;
         } else {
-            quorumBps      = 8000; // 80%
+            quorumBps = 8000; // 80%
             votingDuration = 72 hours;
         }
 
@@ -251,15 +251,7 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         _addMember(_admin);
 
         // Emitir evento de preparación para App-chain
-        emit SubnetReady(
-            address(this),
-            _isNative,
-            _tokenAddress,
-            _trustLevel,
-            quorumBps,
-            votingDuration,
-            _circleName
-        );
+        emit SubnetReady(address(this), _isNative, _tokenAddress, _trustLevel, quorumBps, votingDuration, _circleName);
     }
 
     // ─────────────────────────────────────────────
@@ -347,10 +339,10 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         uint256 reqId = requestCount++;
         EmergencyRequest storage req = requests[reqId];
         req.requester = msg.sender;
-        req.amount    = amount;
-        req.reason    = reason;
-        req.deadline  = block.timestamp + votingDuration;
-        req.status    = RequestStatus.Pending;
+        req.amount = amount;
+        req.reason = reason;
+        req.deadline = block.timestamp + votingDuration;
+        req.status = RequestStatus.Pending;
 
         emit RequestSubmitted(reqId, msg.sender, amount, reason);
     }
@@ -438,18 +430,17 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
             totalPool -= req.amount;
 
             address recipient = req.requester;
-            uint256 amount    = req.amount;
+            uint256 amount = req.amount;
 
             if (isNative) {
                 // Transferencia AVAX usando call (recomendado sobre transfer/send)
-                (bool success, ) = recipient.call{value: amount}("");
+                (bool success,) = recipient.call{value: amount}("");
                 require(success, "TrustCircle: AVAX transfer failed");
             } else {
                 IERC20(tokenAddress).safeTransfer(recipient, amount);
             }
 
             emit RequestExecuted(requestId, recipient, amount);
-
         } else {
             // ── RECHAZADO ──
             req.status = RequestStatus.Rejected;
@@ -514,12 +505,12 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         require(isMember[_newAdmin], "TrustCircle: proposed must be a member");
         require(_newAdmin != owner(), "TrustCircle: already the admin");
 
-        recoveryActive               = true;
-        recoveryProposal.proposed    = _newAdmin;
-        recoveryProposal.deadline    = block.timestamp + 72 hours;
-        recoveryProposal.votesFor    = 0;
-        recoveryProposal.votesAgainst= 0;
-        recoveryProposal.executed    = false;
+        recoveryActive = true;
+        recoveryProposal.proposed = _newAdmin;
+        recoveryProposal.deadline = block.timestamp + 72 hours;
+        recoveryProposal.votesFor = 0;
+        recoveryProposal.votesAgainst = 0;
+        recoveryProposal.executed = false;
 
         emit AdminRecoveryProposed(_newAdmin, recoveryProposal.deadline);
     }
@@ -567,16 +558,13 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         // Quórum simple: más de la mitad de los votos emitidos
         uint256 totalVotes = recoveryProposal.votesFor + recoveryProposal.votesAgainst;
         require(totalVotes > 0, "TrustCircle: no votes cast yet");
-        require(
-            recoveryProposal.votesFor > recoveryProposal.votesAgainst,
-            "TrustCircle: majority not reached"
-        );
+        require(recoveryProposal.votesFor > recoveryProposal.votesAgainst, "TrustCircle: majority not reached");
 
         recoveryProposal.executed = true;
-        recoveryActive            = false;
+        recoveryActive = false;
 
-        address oldAdmin  = owner();
-        address newAdmin  = recoveryProposal.proposed;
+        address oldAdmin = owner();
+        address newAdmin = recoveryProposal.proposed;
 
         // Transferir ownership del círculo al nuevo admin
         _transferOwnership(newAdmin);
@@ -616,7 +604,7 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         returns (
             address requester,
             uint256 amount,
-            string  memory reason,
+            string memory reason,
             uint256 deadline,
             uint256 votesFor,
             uint256 votesAgainst,
@@ -624,15 +612,7 @@ contract TrustCircle is ReentrancyGuard, Ownable, ITrustCircleTypes {
         )
     {
         EmergencyRequest storage req = requests[requestId];
-        return (
-            req.requester,
-            req.amount,
-            req.reason,
-            req.deadline,
-            req.votesFor,
-            req.votesAgainst,
-            req.status
-        );
+        return (req.requester, req.amount, req.reason, req.deadline, req.votesFor, req.votesAgainst, req.status);
     }
 
     /// @notice Verifica si una dirección ya votó en una solicitud.
