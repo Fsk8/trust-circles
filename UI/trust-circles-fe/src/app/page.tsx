@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useEffect } from 'react' // <--- Añadido useEffect
+import { useMemo, useState, useEffect } from 'react'
 import { CircleDot, Loader2, Sparkles, Wallet, Zap } from 'lucide-react'
 import { parseEther, zeroAddress } from 'viem'
 import { avalancheFuji } from 'wagmi/chains'
@@ -31,7 +31,6 @@ import { FACTORY_ADDRESS, factoryAbi } from '@/constants/contracts'
 import { shortAddress } from '@/lib/eth'
 import { cn } from '@/lib/utils'
 
-/** Matches on-chain `TrustLevel`: voting window is 24h / 48h / 72h respectively. */
 function daysToTrustLevel(days: number): 0 | 1 | 2 {
   const d = Math.max(1, Math.min(365, Math.round(days)))
   if (d <= 1) return 0
@@ -39,434 +38,138 @@ function daysToTrustLevel(days: number): 0 | 1 | 2 {
   return 2
 }
 
-function trustLevelLabel(level: 0 | 1 | 2) {
-  switch (level) {
-    case 0:
-      return 'High — ~24h voting, 50% quorum'
-    case 1:
-      return 'Medium — ~48h voting, 67% quorum'
-    default:
-      return 'Low — ~72h voting, 80% quorum'
-  }
-}
-
 export default function Page() {
-  // --- 1. BLINDAJE DE HIDRATACIÓN ---
   const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // --- 2. HOOKS DE WAGMI ---
+  
+  // Siempre llamar a los hooks en el top level
   const connection = useAccount()
   const chainId = useChainId()
-  const {
-    connect,
-    status: connectStatus,
-    error: connectError,
-    reset: resetConnect,
-  } = useConnect()
+  const { connect, status: connectStatus, reset: resetConnect } = useConnect()
   const connectors = useConnectors()
   const { disconnect } = useDisconnect()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
-  // --- 3. ESTADOS DEL FORMULARIO ---
   const [name, setName] = useState('')
   const [minContribution, setMinContribution] = useState('0.01')
   const [durationDays, setDurationDays] = useState('3')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const {
-    writeContract,
-    data: hash,
-    isPending: isWritePending,
-    error: writeError,
-    reset: resetWrite,
-  } = useWriteContract()
+  const { writeContract, data: hash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
+  
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: avalancheFuji.id,
+  })
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash,
-      chainId: avalancheFuji.id,
-    })
+  // Hook de montaje
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
-  const trustLevel = useMemo(
-    () => daysToTrustLevel(Number(durationDays) || 1),
-    [durationDays],
-  )
-
-  const defaultConnector = useMemo(
-    () => connectors[0],
-    [connectors],
-  )
-
+  const trustLevel = useMemo(() => daysToTrustLevel(Number(durationDays) || 1), [durationDays])
+  const defaultConnector = useMemo(() => connectors[0], [connectors])
   const isConnected = connection.status === 'connected'
   const address = connection.addresses?.[0]
   const wrongNetwork = isConnected && chainId !== avalancheFuji.id
 
-  // --- 4. RENDERIZADO INICIAL (SSR SAFE) ---
-  if (!mounted) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a]">
-        <Loader2 className="size-8 animate-spin text-cyan-500" />
-      </div>
-    )
-  }
-
-  // --- 5. LÓGICA DE NEGOCIO ---
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError(null)
-    resetWrite()
-
-    if (!isConnected || !address) {
-      setFormError('Connect a wallet first.')
-      return
-    }
-    if (wrongNetwork) {
-      setFormError('Switch to Avalanche Fuji to create a circle.')
-      return
-    }
-    const trimmed = name.trim()
-    if (!trimmed) {
-      setFormError('Circle name is required.')
-      return
-    }
-
-    let minWei: bigint
-    try {
-      minWei = parseEther(minContribution || '0')
-    } catch {
-      setFormError('Min contribution must be a valid AVAX amount.')
-      return
-    }
-    if (minWei <= BigInt(0)) {
-      setFormError('Min contribution must be greater than zero.')
-      return
-    }
-
-    writeContract({
-      address: FACTORY_ADDRESS,
-      abi: factoryAbi,
-      functionName: 'createCircle',
-      args: [trimmed, true, zeroAddress, trustLevel, [], minWei],
-      chainId: avalancheFuji.id,
-    })
-  }
-
-  const busy = isWritePending || isConfirming
-
-  function handleConnectWallet(connector = defaultConnector) {
+  const handleConnectWallet = (connector = defaultConnector) => {
     if (!connector) return
     resetConnect()
     connect({ connector, chainId: avalancheFuji.id })
   }
 
-  const connectButtonClass =
-    'gap-2 bg-linear-to-r from-cyan-600 to-violet-600 text-white hover:from-cyan-500 hover:to-violet-500'
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError(null)
+    if (!isConnected || !address) return setFormError('Connect wallet first.')
+    try {
+      const minWei = parseEther(minContribution || '0')
+      writeContract({
+        address: FACTORY_ADDRESS,
+        abi: factoryAbi,
+        functionName: 'createCircle',
+        args: [name.trim(), true, zeroAddress, trustLevel, [], minWei],
+        chainId: avalancheFuji.id,
+      })
+    } catch (err) {
+      setFormError('Invalid amount.')
+    }
+  }
+
+  // --- RENDERIZADO CRÍTICO ---
+  // Si no está montado, el servidor devuelve un div vacío. 
+  // Esto garantiza que NO haya mismatch de HTML.
+  if (!mounted) return <div className="min-h-screen bg-black" />
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.35),transparent),radial-gradient(ellipse_60%_40%_at_100%_50%,rgba(56,189,248,0.12),transparent),radial-gradient(ellipse_50%_30%_at_0%_80%,rgba(167,139,250,0.15),transparent)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,oklch(1_0_0/0.03)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0/0.03)_1px,transparent_1px)] [background-size:48px_48px]"
-        aria-hidden
-      />
-
-      <div className="relative mx-auto flex min-h-screen max-w-lg flex-col gap-8 px-4 py-12 sm:px-6">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="relative min-h-screen bg-black text-white p-4 font-sans" suppressHydrationWarning>
+      <div className="mx-auto max-w-lg space-y-8 pt-12">
+        
+        {/* Header */}
+        <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-linear-to-br from-cyan-400/20 to-violet-500/20 ring-1 ring-cyan-400/30">
-              <CircleDot className="size-6 text-cyan-300" aria-hidden />
-            </div>
+            <CircleDot className="text-cyan-400 size-8" />
             <div>
-              <h1 className="text-lg font-semibold tracking-tight text-foreground">
-                Trust Circles
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Deploy on{' '}
-                <span className="font-mono text-cyan-400/90">Fuji</span> testnet
-              </p>
-              <Link
-                href="/dashboard"
-                className={cn(
-                  buttonVariants({ variant: 'link', size: 'xs' }),
-                  'mt-1 h-auto px-0 py-0 text-xs text-cyan-400/80',
-                )}
-              >
-                View dashboard →
-              </Link>
+              <h1 className="text-xl font-bold">Trust Circles</h1>
+              <p className="text-xs text-cyan-500/80 font-mono">Fuji Testnet</p>
             </div>
           </div>
 
-          {isConnected && address ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg border border-border bg-card/80 px-3 py-1.5 font-mono text-xs text-muted-foreground backdrop-blur-sm">
-                {shortAddress(address)}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => disconnect()}
-              >
-                Disconnect
-              </Button>
+          {isConnected ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono bg-white/10 px-2 py-1 rounded">{shortAddress(address!)}</span>
+              <Button variant="ghost" size="sm" onClick={() => disconnect()}>Logout</Button>
             </div>
           ) : (
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-              <Button
-                type="button"
-                size="default"
-                className={connectButtonClass}
-                onClick={() => handleConnectWallet()}
-                disabled={
-                  !defaultConnector || connectStatus === 'pending'
-                }
-              >
-                {connectStatus === 'pending' ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Connecting…
-                  </>
-                ) : (
-                  <>
-                    <Wallet className="size-4" aria-hidden />
-                    Connect wallet
-                  </>
-                )}
-              </Button>
-              {connectors.length > 1 && (
-                <div className="flex flex-wrap justify-end gap-1.5">
-                  {connectors
-                    .filter((c) => c.uid !== defaultConnector?.uid)
-                    .map((c) => (
-                      <Button
-                        key={c.uid}
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => handleConnectWallet(c)}
-                        disabled={connectStatus === 'pending'}
-                      >
-                        {c.name}
-                      </Button>
-                    ))}
-                </div>
-              )}
-            </div>
+            <Button onClick={() => handleConnectWallet()} disabled={connectStatus === 'pending'}>
+              {connectStatus === 'pending' ? <Loader2 className="animate-spin" /> : 'Connect'}
+            </Button>
           )}
         </header>
 
-        {connectError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {connectError instanceof Error
-              ? connectError.message
-              : String(connectError)}
-          </div>
-        )}
-
-        <Card className="border-border/60 bg-card/70 shadow-xl shadow-cyan-950/20 ring-1 ring-cyan-500/10 backdrop-blur-md">
-          <CardHeader className="border-b border-border/50">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Sparkles className="size-4 text-violet-400" aria-hidden />
-                  Create Trust Circle
-                </CardTitle>
-                <CardDescription className="mt-1.5 text-pretty">
-                  Native AVAX pool · Factory deploys a new{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]">
-                    TrustCircle
-                  </code>{' '}
-                  contract
-                </CardDescription>
-              </div>
-              <span className="shrink-0 rounded-md border border-cyan-500/25 bg-cyan-500/10 px-2 py-1 text-[0.65rem] font-medium uppercase tracking-wider text-cyan-300">
-                Web3
-              </span>
-            </div>
+        {/* Form Card */}
+        <Card className="bg-neutral-900 border-neutral-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Sparkles className="size-4 text-violet-400" /> Nuevo Círculo
+            </CardTitle>
           </CardHeader>
-
-          <form onSubmit={handleSubmit}>
-            <CardContent className="flex flex-col gap-5 pt-6">
-              {wrongNetwork && (
-                <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-                  <p className="flex items-center gap-2 font-medium">
-                    <Zap className="size-4 shrink-0" aria-hidden />
-                    Wrong network — switch to Avalanche Fuji
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="w-fit"
-                    disabled={isSwitching}
-                    onClick={() =>
-                      switchChain({ chainId: avalancheFuji.id })
-                    }
-                  >
-                    {isSwitching ? (
-                      <>
-                        <Loader2 className="size-3.5 animate-spin" />
-                        Switching…
-                      </>
-                    ) : (
-                      'Switch to Fuji'
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="circle-name">Circle name</Label>
-                <Input
-                  id="circle-name"
-                  name="name"
-                  placeholder="e.g. Builder Guild · Season 4"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="off"
-                  className="font-medium"
-                />
+          <CardContent className="space-y-4">
+            {wrongNetwork && (
+              <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => switchChain({ chainId: avalancheFuji.id })}>
+                Switch to Fuji
+              </Button>
+            )}
+            <div className="space-y-2">
+              <Label className="text-neutral-400">Nombre</Label>
+              <Input className="bg-neutral-800 border-neutral-700 text-white" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-neutral-400">Min Contribution (AVAX)</Label>
+              <Input type="number" className="bg-neutral-800 border-neutral-700 text-white" value={minContribution} onChange={e => setMinContribution(e.target.value)} />
+            </div>
+            
+            {hash && (
+              <div className="p-3 bg-cyan-950/30 border border-cyan-800 rounded text-[10px] break-all">
+                <p className="text-cyan-400 font-bold">Tx Hash:</p>
+                <a href={`https://testnet.snowtrace.io/tx/${hash}`} target="_blank" className="underline">{hash}</a>
+                {isConfirming && <p className="mt-2 animate-pulse">Esperando confirmación...</p>}
+                {isConfirmed && <p className="mt-2 text-green-400 font-bold">¡Desplegado con éxito!</p>}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="min-contrib">Min contribution (AVAX)</Label>
-                <Input
-                  id="min-contrib"
-                  name="minContribution"
-                  inputMode="decimal"
-                  placeholder="0.1"
-                  value={minContribution}
-                  onChange={(e) => setMinContribution(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Sent to the contract as{' '}
-                  <span className="font-mono text-foreground/80">uint256</span>{' '}
-                  wei via <span className="font-mono">parseEther</span>
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Target duration (days)</Label>
-                <Input
-                  id="duration"
-                  name="durationDays"
-                  type="number"
-                  min={1}
-                  max={365}
-                  step={1}
-                  value={durationDays}
-                  onChange={(e) => setDurationDays(e.target.value)}
-                />
-                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                  On-chain governance windows are fixed by trust tier — we map
-                  your days to{' '}
-                  <span className="font-medium text-foreground">
-                    {trustLevelLabel(trustLevel)}
-                  </span>
-                </p>
-              </div>
-
-              {(formError || writeError) && (
-                <p
-                  className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                  role="alert"
-                >
-                  {formError ??
-                    (writeError instanceof Error
-                      ? writeError.message
-                      : String(writeError))}
-                </p>
-              )}
-
-              {hash && (
-                <div className="space-y-1 rounded-md border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs">
-                  <p className="font-medium text-cyan-200/90">Transaction</p>
-                  <a
-                    href={`https://testnet.snowtrace.io/tx/${hash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block truncate font-mono text-cyan-400/90 underline-offset-2 hover:underline"
-                  >
-                    {hash}
-                  </a>
-                  {isConfirming && (
-                    <p className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Confirming on Fuji…
-                    </p>
-                  )}
-                  {isConfirmed && (
-                    <p className="font-medium text-emerald-400/90">
-                      Confirmed — your circle is live.
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-
-            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              {!isConnected ? (
-                <Button
-                  type="button"
-                  size="lg"
-                  className={`w-full sm:w-auto ${connectButtonClass}`}
-                  onClick={() => handleConnectWallet()}
-                  disabled={
-                    !defaultConnector || connectStatus === 'pending'
-                  }
-                >
-                  {connectStatus === 'pending' ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Connecting…
-                    </>
-                  ) : (
-                    <>
-                      <Wallet className="size-4" aria-hidden />
-                      Connect wallet
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={wrongNetwork || busy}
-                  className={`w-full sm:w-auto ${connectButtonClass}`}
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      {isWritePending ? 'Confirm in wallet…' : 'Confirming…'}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="size-4" aria-hidden />
-                      Deploy circle
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardFooter>
-          </form>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button className="w-full bg-cyan-600 hover:bg-cyan-500" onClick={handleSubmit} disabled={isWritePending || isConfirming}>
+              {(isWritePending || isConfirming) ? <Loader2 className="animate-spin" /> : 'Desplegar en Fuji'}
+            </Button>
+          </CardFooter>
         </Card>
 
-        <p className="text-center text-[0.7rem] text-muted-foreground">
-          Factory ·{' '}
-          <code className="rounded bg-muted/80 px-1 py-0.5 font-mono text-[0.65rem]">
-            {FACTORY_ADDRESS}
-          </code>
-        </p>
+        <div className="text-center">
+          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-cyan-400 transition-colors">
+            Ir al Dashboard →
+          </Link>
+        </div>
       </div>
     </div>
   )
