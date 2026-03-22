@@ -72,7 +72,7 @@ export default function Page() {
               <CircleDot className="size-6 text-cyan-400" />
             </div>
             <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              Trust Circles - p2p insurance/lending protocol
+              Trust Circles
             </h1>
           </div>
           <ConnectSection disconnect={disconnect} />
